@@ -6,6 +6,7 @@ import numpy as np
 import multiprocessing as mp
 import queue
 
+
 class CapturePowermetrics:
     def __init__(self):
         self.parent_conn, self.child_conn = mp.Pipe()
@@ -14,7 +15,10 @@ class CapturePowermetrics:
         self.process = None
 
     def __enter__(self):
-        self.process = mp.Process(target=self._worker, args=(self.child_conn, self.data_queue, self.termination_event))
+        self.process = mp.Process(
+            target=self._worker,
+            args=(self.child_conn, self.data_queue, self.termination_event),
+        )
         self.process.start()
         return self
 
@@ -31,7 +35,12 @@ class CapturePowermetrics:
             return False
 
     def _worker(self, conn, data_queue, termination_event):
-        with subprocess.Popen(["powermetrics", "--samplers", "cpu_power", "--sample-rate", "100"], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True) as proc:
+        with subprocess.Popen(
+            ["powermetrics", "--samplers", "cpu_power", "--sample-rate", "100"],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        ) as proc:
             try:
                 while not termination_event.is_set():
                     line = proc.stdout.readline()
@@ -70,7 +79,7 @@ class CapturePowermetrics:
         ane_power = []
         for line in data:
             if line.startswith("*** Sampled system activity ("):
-                match = re.search(r'\((.*?)\)', line)
+                match = re.search(r"\((.*?)\)", line)
                 date_string = match.group(1)
                 dt = datetime.strptime(date_string, "%a %b %d %H:%M:%S %Y %z")
                 sample_times.append(float(dt.timestamp()))
@@ -84,7 +93,7 @@ class CapturePowermetrics:
                 power = line.split(":", maxsplit=1)[1].strip().split()[0]
                 ane_power.append(float(power))
 
-        CONVERSION_FACTOR_mWs_TO_J  = 1e-3
+        CONVERSION_FACTOR_mWs_TO_J = 1e-3
 
         times = np.array(sample_times)
         cpu = np.array(cpu_power)
@@ -102,6 +111,7 @@ class CapturePowermetrics:
         print("cpu energy:", cpu_J, "J")
         print("gpu energy:", gpu_J, "J")
         print("ane energy:", ane_J, "J")
+
 
 if __name__ == "__main__":
     with CapturePowermetrics() as capture:
