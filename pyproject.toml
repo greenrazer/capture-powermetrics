@@ -5,11 +5,6 @@ description = ""
 authors = ["keighbee <kb@huggingface.co>"]
 readme = "README.md"
 
-[project]
-dynamic = ["dependencies"]
-[tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt"]}
-
 [tool.poetry.dependencies]
 python = "^3.11"
 
