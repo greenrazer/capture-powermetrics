@@ -5,10 +5,17 @@ description = ""
 authors = ["keighbee <kb@huggingface.co>"]
 readme = "README.md"
 
+[project]
+dynamic = ["dependencies"]
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
 [tool.poetry.dependencies]
 python = "^3.11"
-
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.setuptools.packages.find]
+where = ["src"]
