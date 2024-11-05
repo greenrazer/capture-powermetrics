@@ -79,9 +79,9 @@ class CapturePowermetrics:
         gpu = np.array(self.gpu_power)
         ane = np.array(self.ane_power)
 
-        cpu_mWs = np.trapezoid(cpu, times)
-        gpu_mWs = np.trapezoid(gpu, times)
-        ane_mWs = np.trapezoid(ane, times)
+        cpu_mWs = np.trapz(cpu, times)
+        gpu_mWs = np.trapz(gpu, times)
+        ane_mWs = np.trapz(ane, times)
 
         cpu_J = cpu_mWs * CONVERSION_FACTOR_mWs_TO_J
         gpu_J = gpu_mWs * CONVERSION_FACTOR_mWs_TO_J
