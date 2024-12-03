@@ -55,12 +55,19 @@ class CapturePowermetrics:
                 break
 
         self.finished = True
+        currt = 0.0
         for line in collected_data:
             if line.startswith("*** Sampled system activity ("):
-                match = re.search(r"\((.*?)\)", line)
-                date_string = match.group(1)
-                dt = datetime.strptime(date_string, "%a %b %d %H:%M:%S %Y %z")
-                self.sample_times_s.append(float(dt.timestamp()))
+                if currt == 0.0:
+                    match = re.search(r"\((.*?)\)", line)
+                    date_string = match.group(1)
+                    dt = datetime.strptime(date_string, "%a %b %d %H:%M:%S %Y %z")
+                    currt = float(dt.timestamp())
+                else:
+                    match = re.search(r"\((\d+\.?\d*)ms elapsed\)", line)
+                    ms_ell = match.group(1)
+                    currt += float(ms_ell)/1000.0
+                self.sample_times_s.append(currt)
             elif line.startswith("CPU Power"):
                 power = line.split(":", maxsplit=1)[1].strip().split()[0]
                 self.cpu_power_mW.append(float(power))
@@ -87,6 +94,7 @@ class CapturePowermetrics:
 
     def _worker(self, conn, data_queue, termination_event, ane_seen_event):
         ane_power_detected = False
+        how_many = 0
         with subprocess.Popen(
             [
                 "powermetrics",
@@ -100,11 +108,13 @@ class CapturePowermetrics:
             text=True,
         ) as proc:
             try:
-                while not termination_event.is_set():
+                while how_many < 2 or not termination_event.is_set():
                     line = proc.stdout.readline()
                     if line:
                         if self._keep_line(line):
                             if ane_power_detected:
+                                if line.startswith("ANE Power"):
+                                    how_many += 1
                                 data_queue.put(line)
                             elif line.startswith("ANE Power"):
                                 ane_power_detected = True
@@ -150,7 +160,7 @@ class CapturePowermetrics:
 
 
 if __name__ == "__main__":
-    with CapturePowermetrics(sample_rate=100) as capture:
-        time.sleep(2)
+    with CapturePowermetrics(sample_rate=1) as capture:
+        time.sleep(0.00001)
     print(capture)
     print(capture.cpu_energy_J)
