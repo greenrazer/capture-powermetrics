@@ -9,12 +9,13 @@ import os
 
 
 class CapturePowermetrics:
-    def __init__(self, sample_rate: int = 100 ):
+    def __init__(self, sample_rate: int = 100):
         self.sample_rate = sample_rate
 
         self.parent_conn, self.child_conn = mp.Pipe()
         self.data_queue = mp.Queue()
         self.termination_event = mp.Event()
+        self.ane_seen_event = mp.Event()
         self.process = None
         self.finished = False
 
@@ -30,11 +31,17 @@ class CapturePowermetrics:
         assert os.geteuid() == 0, "Must be root."
         self.process = mp.Process(
             target=self._worker,
-            args=(self.child_conn, self.data_queue, self.termination_event),
+            args=(
+                self.child_conn,
+                self.data_queue,
+                self.termination_event,
+                self.ane_seen_event,
+            ),
         )
         self.process.start()
+        self.ane_seen_event.wait()
         return self
-    
+
     def __exit__(self, exc_type, exc_value, traceback):
         self.termination_event.set()
         self.parent_conn.recv()
@@ -46,7 +53,7 @@ class CapturePowermetrics:
                 collected_data.append(self.data_queue.get_nowait())
             except queue.Empty:
                 break
-        
+
         self.finished = True
         for line in collected_data:
             if line.startswith("*** Sampled system activity ("):
@@ -63,7 +70,7 @@ class CapturePowermetrics:
             elif line.startswith("ANE Power"):
                 power = line.split(":", maxsplit=1)[1].strip().split()[0]
                 self.ane_power_mW.append(float(power))
-        
+
         self._compute_energy()
 
     def _keep_line(self, line):
@@ -78,9 +85,16 @@ class CapturePowermetrics:
         else:
             return False
 
-    def _worker(self, conn, data_queue, termination_event):
+    def _worker(self, conn, data_queue, termination_event, ane_seen_event):
+        ane_power_detected = False
         with subprocess.Popen(
-            ["powermetrics", "--samplers", "cpu_power", "--sample-rate", str(self.sample_rate)],
+            [
+                "powermetrics",
+                "--samplers",
+                "cpu_power",
+                "--sample-rate",
+                str(self.sample_rate),
+            ],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -90,7 +104,11 @@ class CapturePowermetrics:
                     line = proc.stdout.readline()
                     if line:
                         if self._keep_line(line):
-                            data_queue.put(line)
+                            if ane_power_detected:
+                                data_queue.put(line)
+                            elif line.startswith("ANE Power"):
+                                ane_power_detected = True
+                                ane_seen_event.set()
                     else:
                         time.sleep(0.1)
 
@@ -132,7 +150,7 @@ class CapturePowermetrics:
 
 
 if __name__ == "__main__":
-    with CapturePowermetrics(sample_rate=1) as capture:
+    with CapturePowermetrics(sample_rate=100) as capture:
         time.sleep(2)
     print(capture)
     print(capture.cpu_energy_J)
